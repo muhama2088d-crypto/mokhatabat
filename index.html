@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12395c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>متابعة المخاطبات</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root{
+    --navy:#12395c; --navy2:#0d2b46; --bg:#f2f4f7; --card:#fff;
+    --ink:#16202b; --muted:#6b7684; --line:#e3e7ee;
+    --red:#dc2626; --amber:#d97706; --green:#0f8a53; --blue:#2563eb;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"SF Arabic","Segoe UI",Tahoma,sans-serif;font-size:16px;
+    overscroll-behavior:none}
+  header{background:linear-gradient(160deg,var(--navy),var(--navy2));
+    color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 16px;
+    border-radius:0 0 22px 22px;position:sticky;top:0;z-index:20;box-shadow:0 6px 18px rgba(18,57,92,.18)}
+  .hrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  h1{font-size:19px;margin:0;font-weight:700}
+  .hbtns{display:flex;gap:8px}
+  .icon{background:rgba(255,255,255,.14);border:0;color:#fff;width:38px;height:38px;
+    border-radius:12px;font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+  .stat{background:rgba(255,255,255,.12);border-radius:14px;padding:8px 6px;text-align:center}
+  .stat b{display:block;font-size:20px;line-height:1.3}
+  .stat span{font-size:10.5px;opacity:.85;display:block;white-space:nowrap}
+  .stat.red b{color:#ffd0d0}.stat.amb b{color:#ffe0b3}
+  .banner{background:#fde8e8;color:#991b1b;font-size:13px;font-weight:600;
+    padding:10px 14px;border-radius:12px;margin-bottom:10px;display:none}
+  main{padding:14px 14px calc(96px + env(safe-area-inset-bottom))}
+  .tabs{display:flex;gap:8px;margin-bottom:10px}
+  .tabs button{flex:1;border:1px solid var(--line);background:#fff;color:var(--muted);
+    padding:9px 4px;border-radius:12px;font-size:13px;font-weight:600;font-family:inherit}
+  .tabs button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .search{width:100%;padding:11px 14px;border-radius:12px;border:1px solid var(--line);
+    background:#fff;font-size:15px;font-family:inherit;margin-bottom:12px}
+  .row{background:#fff;border-radius:16px;padding:13px 14px;margin-bottom:9px;
+    display:flex;gap:10px;align-items:center;border:1px solid var(--line)}
+  .row-main{flex:1;min-width:0}
+  .row-title{font-weight:650;font-size:15px;margin-bottom:3px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row-sub{font-size:12px;color:var(--muted);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{font-size:11px;font-weight:700;padding:5px 9px;border-radius:9px;white-space:nowrap}
+  .b-red{background:#fde8e8;color:var(--red)}
+  .b-amb{background:#fdf1e0;color:var(--amber)}
+  .b-grn{background:#e3f6ec;color:var(--green)}
+  .b-gray{background:#eef1f5;color:var(--muted)}
+  .empty{text-align:center;color:var(--muted);padding:50px 20px;font-size:14px;line-height:2}
+  #fab{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;
+    transform:translateX(-50%);background:var(--navy);color:#fff;border:0;
+    padding:15px 30px;border-radius:50px;font-size:17px;font-weight:700;font-family:inherit;
+    box-shadow:0 10px 24px rgba(18,57,92,.35);z-index:30}
+  .sheet-wrap{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(10,20,32,.45);display:none;z-index:50;
+    align-items:flex-end;justify-content:center}
+  .sheet-wrap.open{display:flex}
+  .sheet{background:var(--bg);width:100%;max-width:760px;max-height:94vh;overflow-y:auto;
+    border-radius:22px 22px 0 0;padding:0 0 calc(18px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling:touch}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;
+    padding:16px 18px;position:sticky;top:0;background:var(--bg);z-index:2;border-bottom:1px solid var(--line)}
+  .sheet-head h2{font-size:17px;margin:0;font-weight:700}
+  .x{background:#fff;border:1px solid var(--line);width:34px;height:34px;border-radius:50%;
+    font-size:17px;color:var(--muted);line-height:1}
+  .body{padding:16px 18px 0}
+  label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin:14px 0 6px}
+  input,select,textarea{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:12px;
+    font-size:16px;font-family:inherit;background:#fff;color:var(--ink);-webkit-appearance:none}
+  textarea{min-height:80px;resize:vertical}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .photo{display:flex;gap:12px;align-items:center;background:#fff;border:1.5px dashed #c6cfdb;
+    border-radius:16px;padding:14px}
+  .photo .thumb{width:74px;height:74px;border-radius:12px;object-fit:cover;background:#eef1f5;display:none}
+  .photo .txt{flex:1;font-size:13px;color:var(--muted);line-height:1.6}
+  .photo b{display:block;color:var(--navy);font-size:14.5px}
+  .btn{width:100%;border:0;border-radius:14px;padding:15px;font-size:16.5px;font-weight:700;
+    font-family:inherit;margin-top:16px;background:#fff;color:var(--navy);border:1px solid var(--line)}
+  .btn-main{background:var(--navy);color:#fff;border:0}
+  .btn:disabled{opacity:.55}
+  .btn-danger{background:#fff;color:#b91c1c;border:1px solid #f3c8c8}
+  .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .btn-row .btn{margin-top:0}
+  .shot{width:100%;border-radius:14px;border:1px solid var(--line);background:#fff;display:block}
+  .log{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;
+    font-size:13.5px;line-height:1.9;white-space:pre-wrap;color:#33404f;max-height:220px;overflow:auto}
+  .meta{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 15px;font-size:14px;line-height:2}
+  .meta span{color:var(--muted);font-size:12.5px}
+  .toast{position:fixed;bottom:calc(96px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
+    background:#12202e;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:99;
+    opacity:0;transition:.25s;pointer-events:none;max-width:88%;text-align:center}
+  .toast.show{opacity:1}
+  .note{font-size:12px;color:var(--muted);line-height:1.8;margin-top:14px;text-align:center}
+  @media(min-width:700px){ .stat b{font-size:24px} h1{font-size:22px} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <h1>متابعة المخاطبات</h1>
+    <div class="hbtns">
+      <button class="icon" id="btnMenu" aria-label="القائمة">☰</button>
+      <button class="icon" id="btnRefresh" aria-label="تحديث">↻</button>
+    </div>
+  </div>
+  <div class="stats" id="stats"></div>
+</header>
+
+<main>
+  <div class="banner" id="banner"></div>
+  <div class="tabs">
+    <button data-f="due" class="on">يحتاج متابعة</button>
+    <button data-f="open">مفتوح</button>
+    <button data-f="all">الكل</button>
+  </div>
+  <input id="search" class="search" placeholder="ابحث بالموضوع أو الجهة أو الرقم…">
+  <div id="list"></div>
+</main>
+
+<button id="fab">＋ كتاب جديد</button>
+
+<!-- ===== إضافة ===== -->
+<div class="sheet-wrap" id="sheetAdd">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>كتاب جديد</h2>
+      <button class="x" data-close="sheetAdd">✕</button>
+    </div>
+    <div class="body">
+      <div class="photo" id="photoBox">
+        <div class="txt"><b>📷 صوّر المخاطبة</b>الصورة تنحفظ داخل التطبيق — بلا إنترنت</div>
+        <img class="thumb" id="photoThumb" alt="">
+      </div>
+      <input type="file" id="fPhoto" accept="image/*" capture="environment" style="display:none">
+      <input type="file" id="fPhotoLib" accept="image/*" style="display:none">
+      <div class="btn-row">
+        <button class="btn" id="btnPhoto">📷 تصوير</button>
+        <button class="btn" id="btnPhotoLib">🖼 من الصور</button>
+      </div>
+
+      <div class="two">
+        <div><label>النوع</label>
+          <select id="fType"><option>وارد</option><option>صادر</option><option>داخلي</option></select>
+        </div>
+        <div><label>رقم الكتاب</label><input id="fRef" placeholder="145/2026"></div>
+      </div>
+
+      <div class="two">
+        <div><label>تاريخ الكتاب</label><input type="date" id="fDate"></div>
+        <div><label>تاريخ المتابعة</label><input type="date" id="fDue"></div>
+      </div>
+
+      <label>الجهة</label>
+      <input id="fParty" placeholder="وزارة / شركة / قسم">
+
+      <label>الموضوع</label>
+      <input id="fSubject" placeholder="موضوع المخاطبة">
+
+      <label>ملاحظة أولية (اختياري)</label>
+      <textarea id="fNotes" placeholder="مثلاً: بانتظار رد الوزارة"></textarea>
+
+      <button class="btn btn-main" id="btnSave">حفظ الكتاب</button>
+      <div class="note">كل شي ينحفظ على الجهاز فوراً — ما يحتاج إنترنت</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== تفاصيل ===== -->
+<div class="sheet-wrap" id="sheetView">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="vTitle">تفاصيل الكتاب</h2>
+      <button class="x" data-close="sheetView">✕</button>
+    </div>
+    <div class="body" id="vBody"></div>
+  </div>
+</div>
+
+<!-- ===== قائمة ===== -->
+<div class="sheet-wrap" id="sheetMenu">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>الأرشيف والإعدادات</h2>
+      <button class="x" data-close="sheetMenu">✕</button>
+    </div>
+    <div class="body">
+      <div class="meta" id="menuInfo"></div>
+
+      <button class="btn" id="mInstall">📲 تثبيت التطبيق على الجهاز</button>
+      <button class="btn" id="mCsv">📊 تصدير Excel (كل الكتب)</button>
+      <button class="btn" id="mBackup">💾 نسخة احتياطية كاملة (مع الصور)</button>
+      <button class="btn" id="mRestore">♻️ استعادة من نسخة احتياطية</button>
+      <button class="btn" id="mNotify">🔔 تفعيل تنبيه المتأخرات</button>
+
+      <input type="file" id="fRestore" accept=".json,application/json" style="display:none">
+
+      <div class="note">
+        البيانات محفوظة على هذا الجهاز فقط.<br>
+        سوِّ نسخة احتياطية كل أسبوع واحفظها على Drive أو أي مكان آمن.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= أدوات ================= */
+var $ = function (s) { return document.querySelector(s); };
+var CLOSED = ['مكتمل', 'ملغى', 'منجز', 'منجز '];
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function todayStr() { return ymd(new Date()); }
+function plusDays(n) { var d = new Date(); d.setDate(d.getDate() + n); return ymd(d); }
+function toDate(s) {
+  if (!s) return null;
+  var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  return new Date(+m[1], +m[2] - 1, +m[3]);
+}
+function daysBetween(a, b) { return Math.round((a - b) / 86400000); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function stamp() {
+  var d = new Date();
+  return ymd(d) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+function toast(msg) {
+  var t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(function () { t.classList.remove('show'); }, 2800);
+}
+
+/* ================= قاعدة البيانات ================= */
+var DB = null;
+var BOOKS = [];
+var FILTER = 'due';
+var NEW_PHOTO = null;
+var VIEW_URL = null;
+
+function openDB() {
+  return new Promise(function (res, rej) {
+    var req = indexedDB.open('mokhatabat', 1);
+    req.onupgradeneeded = function (e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains('books')) {
+        var st = db.createObjectStore('books', { keyPath: 'id', autoIncrement: true });
+        st.createIndex('due', 'due');
+      }
+    };
+    req.onsuccess = function (e) { res(e.target.result); };
+    req.onerror = function (e) { rej(e.target.error); };
+  });
+}
+function db() {
+  if (DB) return Promise.resolve(DB);
+  return openDB().then(function (d) { DB = d; return d; });
+}
+function allBooks() {
+  return db().then(function (d) {
+    return new Promise(function (res, rej) {
+      var t = d.transaction('books', 'readonly');
+      var r = t.objectStore('books').getAll();
+      r.onsuccess = function () { res(r.result || []); };
+      r.onerror = function () { rej(r.error); };
+    });
+  });
+}
+function saveBook(b) {
+  return db().then(function (d) {
+    return new Promise(function (res, rej) {
+      var t = d.transaction('books', 'readwrite');
+      var st = t.objectStore('books');
+      var req = (b.id === undefined || b.id === null) ? st.add(b) : st.put(b);
+      req.onsuccess = function () { res(req.result); };
+      req.onerror = function () { rej(req.error); };
+    });
+  });
+}
+function removeBook(id) {
+  return db().then(function (d) {
+    return new Promise(function (res, rej) {
+      var t = d.transaction('books', 'readwrite');
+      var r = t.objectStore('books').delete(id);
+      r.onsuccess = function () { res(true); };
+      r.onerror = function () { rej(r.error); };
+    });
+  });
+}
+function clearBooks() {
+  return db().then(function (d) {
+    return new Promise(function (res, rej) {
+      var t = d.transaction('books', 'readwrite');
+      var r = t.objectStore('books').clear();
+      r.onsuccess = function () { res(true); };
+      r.onerror = function () { rej(r.error); };
+    });
+  });
+}
+
+/* ================= تحميل وعرض ================= */
+function load() {
+  return allBooks().then(function (items) {
+    BOOKS = items;
+    render();
+  }).catch(function (e) {
+    $('#list').innerHTML = '<div class="empty">⚠️ ' + esc(e.message) + '</div>';
+  });
+}
+
+function isClosed(b) { return CLOSED.indexOf(String(b.status || '').trim()) > -1; }
+
+function dueState(b) {
+  if (isClosed(b)) return { cls: 'b-grn', txt: 'مكتمل' };
+  var d = toDate(b.due);
+  if (!d) return { cls: 'b-gray', txt: 'بلا موعد' };
+  var n = daysBetween(new Date(ymd(new Date())), d);
+  if (n < 0) return { cls: 'b-red', txt: 'متأخر ' + Math.abs(n) + ' يوم' };
+  if (n === 0) return { cls: 'b-red', txt: 'مستحق اليوم' };
+  if (n <= 3) return { cls: 'b-amb', txt: 'بعد ' + n + ' يوم' };
+  return { cls: 'b-gray', txt: 'بعد ' + n + ' يوم' };
+}
+
+function render() {
+  renderStats();
+  var q = ($('#search').value || '').trim().toLowerCase();
+  var today = todayStr();
+  var list = BOOKS.filter(function (b) { return !isClosed(b); });
+
+  if (FILTER === 'due') {
+    list = BOOKS.filter(function (b) {
+      return !isClosed(b) && b.due && b.due <= today;
+    });
+  } else if (FILTER === 'all') {
+    list = BOOKS.slice();
+  }
+
+  if (q) {
+    list = list.filter(function (b) {
+      return ((b.subject || '') + ' ' + (b.party || '') + ' ' + (b.ref || '') + ' ' + (b.notes || ''))
+        .toLowerCase().indexOf(q) > -1;
+    });
+  }
+
+  list.sort(function (a, b) {
+    var da = a.due || '9999', db = b.due || '9999';
+    if (da !== db) return da < db ? -1 : 1;
+    return (b.id || 0) - (a.id || 0);
+  });
+
+  if (!list.length) {
+    $('#list').innerHTML = '<div class="empty">ماكو شي هنا 👌<br>' +
+      (FILTER === 'due' ? 'ماكو مخاطبات تحتاج متابعة اليوم' : 'اضغط "＋ كتاب جديد" للبدء') + '</div>';
+    return;
+  }
+
+  $('#list').innerHTML = list.map(function (b) {
+    var st = dueState(b);
+    return '<div class="row" data-id="' + b.id + '">' +
+      '<div class="row-main">' +
+        '<div class="row-title">' + esc(b.subject || '(بلا موضوع)') + '</div>' +
+        '<div class="row-sub">' + esc(b.type) + ' · ' + esc(b.party || '—') +
+          (b.ref ? ' · رقم ' + esc(b.ref) : '') + ' · ' + esc(b.date || '') + '</div>' +
+      '</div>' +
+      '<span class="badge ' + st.cls + '">' + st.txt + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function renderStats() {
+  var month = todayStr().slice(0, 7);
+  var today = todayStr();
+  var vin = 0, vout = 0, late = 0, wait = 0;
+
+  BOOKS.forEach(function (b) {
+    var d = String(b.date || '');
+    if (d.slice(0, 7) === month) {
+      if (b.type === 'وارد') vin++;
+      if (b.type === 'صادر') vout++;
+    }
+    if (!isClosed(b)) {
+      if (b.due && b.due <= today) late++;
+      if (b.status === 'بانتظار رد') wait++;
+    }
+  });
+
+  $('#stats').innerHTML =
+    '<div class="stat"><b>' + vin + '</b><span>وارد الشهر</span></div>' +
+    '<div class="stat"><b>' + vout + '</b><span>صادر الشهر</span></div>' +
+    '<div class="stat red"><b>' + late + '</b><span>متأخر</span></div>' +
+    '<div class="stat amb"><b>' + wait + '</b><span>بانتظار رد</span></div>';
+
+  var bn = $('#banner');
+  if (late > 0) {
+    bn.style.display = 'block';
+    bn.textContent = '🔴 عندك ' + late + ' مخاطبة متأخرة — اضغط "يحتاج متابعة"';
+  } else {
+    bn.style.display = 'none';
+  }
+}
+
+/* ================= نوافذ ================= */
+function openSheet(id) {
+  Array.prototype.forEach.call(document.querySelectorAll('.sheet-wrap'), function (w) {
+    w.classList.remove('open');
+  });
+  $('#' + id).classList.add('open');
+}
+function closeAll() {
+  Array.prototype.forEach.call(document.querySelectorAll('.sheet-wrap'), function (w) {
+    w.classList.remove('open');
+  });
+  if (VIEW_URL) { URL.revokeObjectURL(VIEW_URL); VIEW_URL = null; }
+}
+
+/* ================= صورة ================= */
+function compress(file, maxDim, quality) {
+  return new Promise(function (res, rej) {
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function () {
+      var w = img.width, h = img.height;
+      var s = Math.min(1, maxDim / Math.max(w, h));
+      w = Math.round(w * s); h = Math.round(h * s);
+      var c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      c.toBlob(function (blob) {
+        if (blob) res(blob); else rej(new Error('فشل تجهيز الصورة'));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('ما گدرت أقرأ الصورة')); };
+    img.src = url;
+  });
+}
+
+function onPhoto(e) {
+  var f = e.target.files && e.target.files[0];
+  if (!f) return;
+  toast('جاري تجهيز الصورة…');
+  compress(f, 1600, 0.82).then(function (blob) {
+    NEW_PHOTO = blob;
+    var th = $('#photoThumb');
+    th.src = URL.createObjectURL(blob);
+    th.style.display = 'block';
+    $('#photoBox').querySelector('.txt').innerHTML = '<b>✅ الصورة جاهزة</b>تنحفظ مع الكتاب';
+    toast('الصورة جاهزة');
+  }).catch(function (err) { toast('⚠️ ' + err.message); });
+}
+
+/* ================= إضافة ================= */
+function openAdd() {
+  NEW_PHOTO = null;
+  $('#fPhoto').value = '';
+  $('#fPhotoLib').value = '';
+  $('#photoThumb').style.display = 'none';
+  $('#photoBox').querySelector('.txt').innerHTML = '<b>📷 صوّر المخاطبة</b>الصورة تنحفظ داخل التطبيق — بلا إنترنت';
+  $('#fType').value = 'وارد';
+  $('#fRef').value = '';
+  $('#fParty').value = '';
+  $('#fSubject').value = '';
+  $('#fNotes').value = '';
+  $('#fDate').value = todayStr();
+  $('#fDue').value = plusDays(7);
+  openSheet('sheetAdd');
+}
+
+function saveNew() {
+  var subject = $('#fSubject').value.trim();
+  if (!subject) { toast('اكتب الموضوع أول شي'); return; }
+
+  var btn = $('#btnSave');
+  btn.disabled = true;
+  btn.textContent = 'جاري الحفظ…';
+
+  var rec = {
+    type: $('#fType').value,
+    ref: $('#fRef').value.trim(),
+    party: $('#fParty').value.trim(),
+    subject: subject,
+    date: $('#fDate').value || todayStr(),
+    due: $('#fDue').value || '',
+    status: 'قيد المتابعة',
+    notes: $('#fNotes').value.trim() ? ('• ' + stamp() + ' — ' + $('#fNotes').value.trim()) : '',
+    photo: NEW_PHOTO || null,
+    createdAt: new Date().toISOString()
+  };
+
+  saveBook(rec).then(function () {
+    closeAll();
+    toast('✅ انحفظ الكتاب');
+    return load();
+  }).catch(function (e) {
+    toast('⚠️ ' + e.message);
+  }).then(function () {
+    btn.disabled = false;
+    btn.textContent = 'حفظ الكتاب';
+  });
+}
+
+/* ================= تفاصيل ================= */
+function openItem(id) {
+  var b = BOOKS.filter(function (x) { return String(x.id) === String(id); })[0];
+  if (!b) return;
+
+  $('#vTitle').textContent = 'كتاب رقم ' + b.id;
+
+  var img = '';
+  if (b.photo) {
+    VIEW_URL = URL.createObjectURL(b.photo);
+    img = '<img class="shot" src="' + VIEW_URL + '" alt="">';
+  }
+
+  var opts = ['جديد', 'قيد المتابعة', 'بانتظار رد', 'مكتمل', 'ملغى'].map(function (s) {
+    return '<option' + (s === b.status ? ' selected' : '') + '>' + s + '</option>';
+  }).join('');
+
+  $('#vBody').innerHTML =
+    img +
+    '<div class="meta" style="margin-top:12px">' +
+      '<div><span>النوع:</span> ' + esc(b.type) + '</div>' +
+      '<div><span>الجهة:</span> ' + esc(b.party || '—') + '</div>' +
+      '<div><span>الموضوع:</span> ' + esc(b.subject) + '</div>' +
+      '<div><span>الرقم:</span> ' + esc(b.ref || '—') + ' · <span>التاريخ:</span> ' + esc(b.date || '—') + '</div>' +
+    '</div>' +
+
+    '<label>رقم الكتاب</label><input id="vRef" value="' + esc(b.ref || '') + '">' +
+    '<label>الجهة</label><input id="vParty" value="' + esc(b.party || '') + '">' +
+    '<label>الموضوع</label><input id="vSubject" value="' + esc(b.subject || '') + '">' +
+    '<label>تاريخ المتابعة</label><input type="date" id="vDue" value="' + esc(b.due || '') + '">' +
+    '<label>الحالة</label><select id="vStatus">' + opts + '</select>' +
+
+    '<button class="btn btn-main" id="vSave">حفظ التعديلات</button>' +
+    '<div class="btn-row">' +
+      '<button class="btn" id="vDone">✔ تم</button>' +
+      '<button class="btn" id="vPost">⏰ تأجيل أسبوع</button>' +
+    '</div>' +
+
+    '<label>إضافة ملاحظة متابعة</label>' +
+    '<textarea id="vNote" placeholder="شنو صار بالمتابعة؟"></textarea>' +
+    '<button class="btn" id="vAddNote">إضافة الملاحظة</button>' +
+
+    '<label>سجل الملاحظات</label>' +
+    '<div class="log" id="vLog">' + esc(b.notes || 'ماكو ملاحظات بعد') + '</div>' +
+
+    '<button class="btn btn-danger" id="vDel">حذف الكتاب</button>';
+
+  function reload() { return load().then(function () { closeAll(); }); }
+
+  $('#vSave').onclick = function () {
+    b.ref = $('#vRef').value.trim();
+    b.party = $('#vParty').value.trim();
+    b.subject = $('#vSubject').value.trim();
+    b.due = $('#vDue').value;
+    b.status = $('#vStatus').value;
+    saveBook(b).then(reload).then(function () { toast('✅ انحفظ'); });
+  };
+
+  $('#vDone').onclick = function () {
+    b.status = 'مكتمل';
+    saveBook(b).then(reload).then(function () { toast('✅ تم إنجازه'); });
+  };
+
+  $('#vPost').onclick = function () {
+    var base = toDate(b.due) || new Date();
+    base.setDate(base.getDate() + 7);
+    b.due = ymd(base);
+    saveBook(b).then(reload).then(function () { toast('⏰ تأجل أسبوع'); });
+  };
+
+  $('#vAddNote').onclick = function () {
+    var txt = $('#vNote').value.trim();
+    if (!txt) { toast('اكتب الملاحظة'); return; }
+    var line = '• ' + stamp() + ' — ' + txt;
+    b.notes = b.notes ? (b.notes + '\n' + line) : line;
+    saveBook(b).then(function () {
+      $('#vLog').textContent = b.notes;
+      $('#vNote').value = '';
+      toast('✅ انضافت الملاحظة');
+    });
+  };
+
+  $('#vDel').onclick = function () {
+    if (!confirm('تريد تحذف هذا الكتاب نهائياً؟')) return;
+    removeBook(b.id).then(reload).then(function () { toast('انحذف'); });
+  };
+
+  openSheet('sheetView');
+}
+
+/* ================= تصدير / نسخ ================= */
+function download(blob, name) {
+  var a = document.createElement('a');
+  var url = URL.createObjectURL(blob);
+  a.href = url; a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+function csvCell(v) {
+  return '"' + String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' | ') + '"';
+}
+function exportCSV() {
+  if (!BOOKS.length) { toast('ماكو بيانات للتصدير'); return; }
+  var head = ['المعرف', 'النوع', 'تاريخ الكتاب', 'الجهة', 'الموضوع', 'رقم الكتاب', 'تاريخ المتابعة', 'الحالة', 'الملاحظات'];
+  var rows = [head];
+  BOOKS.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (b) {
+    rows.push([b.id, b.type, b.date, b.party, b.subject, b.ref, b.due, b.status, b.notes]);
+  });
+  var csv = rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n');
+  download(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }), 'المخاطبات_' + todayStr() + '.csv');
+  toast('✅ تصدير جاهز');
+}
+
+function blobToDataURL(blob) {
+  return new Promise(function (res, rej) {
+    var r = new FileReader();
+    r.onload = function () { res(r.result); };
+    r.onerror = function () { rej(r.error); };
+    r.readAsDataURL(blob);
+  });
+}
+function dataURLtoBlob(u) {
+  return fetch(u).then(function (r) { return r.blob(); });
+}
+
+function exportBackup() {
+  if (!BOOKS.length) { toast('ماكو بيانات'); return; }
+  toast('جاري تجهيز النسخة…');
+  var out = [];
+  var chain = Promise.resolve();
+  BOOKS.forEach(function (b) {
+    chain = chain.then(function () {
+      var o = { type: b.type, date: b.date, party: b.party, subject: b.subject, ref: b.ref,
+                due: b.due, status: b.status, notes: b.notes, createdAt: b.createdAt, photo: null };
+      if (b.photo) {
+        return blobToDataURL(b.photo).then(function (d) { o.photo = d; out.push(o); });
+      }
+      out.push(o);
+    });
+  });
+  chain.then(function () {
+    var data = { app: 'mokhatabat', version: 1, exported: new Date().toISOString(), books: out };
+    download(new Blob([JSON.stringify(data)], { type: 'application/json' }),
+      'نسخة-احتياطية-' + todayStr() + '.json');
+    toast('✅ النسخة جاهزة — احفظها على Drive');
+  }).catch(function (e) { toast('⚠️ ' + e.message); });
+}
+
+function importBackup(file) {
+  var r = new FileReader();
+  r.onload = function () {
+    var data;
+    try { data = JSON.parse(r.result); } catch (e) { toast('الملف مو صالح'); return; }
+    if (!data || !data.books || !data.books.length) { toast('ماكو كتب بالملف'); return; }
+    if (!confirm('استعادة ' + data.books.length + ' كتاب؟ راح ينمسح الموجود حالياً.')) return;
+
+    clearBooks().then(function () {
+      var chain = Promise.resolve();
+      data.books.forEach(function (o) {
+        chain = chain.then(function () {
+          if (o.photo) {
+            return dataURLtoBlob(o.photo).then(function (blob) {
+              o.photo = blob;
+              delete o.id;
+              return saveBook(o);
+            });
+          }
+          delete o.id;
+          return saveBook(o);
+        });
+      });
+      return chain;
+    }).then(function () {
+      toast('✅ تمت الاستعادة');
+      closeAll();
+      return load();
+    }).catch(function (e) { toast('⚠️ ' + e.message); });
+  };
+  r.readAsText(file);
+}
+
+function enableNotify() {
+  if (!('Notification' in window)) { toast('الجهاز ما يدعم التنبيهات'); return; }
+  Notification.requestPermission().then(function (p) {
+    if (p === 'granted') { toast('✅ تم تفعيل التنبيه'); maybeNotify(true); }
+    else toast('ما انعطت صلاحية التنبيه');
+  });
+}
+function maybeNotify(force) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  var today = todayStr();
+  var last = localStorage.getItem('lastNotify');
+  if (!force && last === today) return;
+
+  var late = BOOKS.filter(function (b) {
+    return !isClosed(b) && b.due && b.due <= today;
+  }).length;
+  if (!late) return;
+
+  localStorage.setItem('lastNotify', today);
+  if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+    navigator.serviceWorker.ready.then(function (reg) {
+      reg.showNotification('عندك ' + late + ' مخاطبة متأخرة', {
+        body: 'افتح التطبيق وشوف شنو يحتاج متابعة',
+        icon: 'icon-192.png', badge: 'icon-192.png'
+      });
+    }).catch(function () {});
+  }
+}
+
+/* ================= قائمة ================= */
+function openMenu() {
+  var photos = BOOKS.filter(function (b) { return !!b.photo; }).length;
+  $('#menuInfo').innerHTML =
+    '<div><span>عدد الكتب:</span> ' + BOOKS.length + '</div>' +
+    '<div><span>فيهم صور:</span> ' + photos + '</div>' +
+    '<div><span>الحالة:</span> ' + (navigator.onLine ? 'متصل' : 'بدون إنترنت') + '</div>' +
+    '<div><span>التخزين:</span> على هذا الجهاز</div>';
+  openSheet('sheetMenu');
+}
+
+/* ================= أحداث ================= */
+document.addEventListener('click', function (e) {
+  var row = e.target.closest ? e.target.closest('.row') : null;
+  if (row) openItem(row.getAttribute('data-id'));
+
+  var t = e.target.closest ? e.target.closest('.tabs button') : null;
+  if (t) {
+    Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (b) {
+      b.classList.remove('on');
+    });
+    t.classList.add('on');
+    FILTER = t.getAttribute('data-f');
+    render();
+  }
+
+  var c = e.target.closest ? e.target.closest('[data-close]') : null;
+  if (c) closeAll();
+
+  if (e.target.classList && e.target.classList.contains('sheet-wrap')) closeAll();
+});
+
+$('#fab').addEventListener('click', openAdd);
+$('#btnMenu').addEventListener('click', openMenu);
+$('#btnRefresh').addEventListener('click', function () { load(); toast('تم التحديث'); });
+$('#search').addEventListener('input', render);
+
+$('#btnPhoto').addEventListener('click', function () { $('#fPhoto').click(); });
+$('#btnPhotoLib').addEventListener('click', function () { $('#fPhotoLib').click(); });
+$('#photoBox').addEventListener('click', function () { $('#fPhoto').click(); });
+$('#fPhoto').addEventListener('change', onPhoto);
+$('#fPhotoLib').addEventListener('change', onPhoto);
+$('#btnSave').addEventListener('click', saveNew);
+
+$('#mCsv').addEventListener('click', exportCSV);
+$('#mBackup').addEventListener('click', exportBackup);
+$('#mRestore').addEventListener('click', function () { $('#fRestore').click(); });
+$('#fRestore').addEventListener('change', function (e) {
+  var f = e.target.files && e.target.files[0];
+  if (f) importBackup(f);
+  e.target.value = '';
+});
+$('#mNotify').addEventListener('click', enableNotify);
+
+var installEvt = null;
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault();
+  installEvt = e;
+});
+$('#mInstall').addEventListener('click', function () {
+  if (installEvt) {
+    installEvt.prompt();
+    installEvt = null;
+  } else {
+    toast('من قائمة المتصفح ⋮ اختر "إضافة إلى الشاشة الرئيسية"');
+  }
+});
+
+/* ================= بدء ================= */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+
+load().then(function () { setTimeout(function () { maybeNotify(false); }, 1200); });
+</script>
+</body>
+</html>
