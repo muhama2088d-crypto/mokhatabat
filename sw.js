@@ -1,5 +1,5 @@
-/* خدمة العمل بدون إنترنت — النسخة 3 */
-const CACHE = 'mokhatabat-v3';
+/* خدمة العمل بدون إنترنت — النسخة 4 */
+const CACHE = 'mokhatabat-v4';
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
@@ -26,7 +26,20 @@ self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
   var req = e.request;
 
-  /* صفحات: جرّب الشبكة أولاً حتى توصل التحديثات، وإذا ماكو نت استخدم المخزّن */
+  /* ملف الإصدار: دايماً من الشبكة — حتى نعرف إذا صار تحديث */
+  if (req.url.indexOf('version.json') > -1) {
+    e.respondWith(
+      fetch(req, { cache: 'no-store' }).catch(function () {
+        return new Response('{"version":"0"}', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      })
+    );
+    return;
+  }
+
+  /* صفحات: الشبكة أولاً (تحديثات) ثم المخزّن (بدون نت) */
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req).then(function (res) {
@@ -43,7 +56,7 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  /* ملفات: من الكاش أولاً */
+  /* ملفات: الكاش أولاً */
   e.respondWith(
     caches.match(req, { ignoreSearch: true }).then(function (hit) {
       if (hit) return hit;
