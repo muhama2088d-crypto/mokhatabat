@@ -34,6 +34,10 @@
   .stat.red b{color:#ffd0d0}.stat.amb b{color:#ffe0b3}
   .banner{background:#fde8e8;color:#991b1b;font-size:13px;font-weight:600;
     padding:10px 14px;border-radius:12px;margin-bottom:10px;display:none}
+  .upd{display:none;align-items:center;gap:10px;background:#e8effc;color:#1e3a8a;
+    border:1px solid #c7d7f7;font-size:13px;font-weight:600;padding:9px 12px;border-radius:12px;margin-bottom:10px}
+  .upd button{margin-right:auto;background:#1d4ed8;color:#fff;border:0;border-radius:9px;
+    padding:8px 14px;font-size:12.5px;font-weight:700;font-family:inherit}
   main{padding:14px 14px calc(96px + env(safe-area-inset-bottom))}
   .tabs{display:flex;gap:8px;margin-bottom:10px}
   .tabs button{flex:1;border:1px solid var(--line);background:#fff;color:var(--muted);
@@ -128,6 +132,10 @@
 </header>
 
 <main>
+  <div class="upd" id="upd">
+    <span>🔄 صار في إصدار جديد</span>
+    <button id="btnUpd">تحديث الآن</button>
+  </div>
   <div class="banner" id="banner"></div>
   <div class="tabs">
     <button data-f="due" class="on">يحتاج متابعة</button>
@@ -213,8 +221,9 @@
       <div class="meta" id="menuInfo"></div>
 
       <button class="btn" id="mInstall">📲 تثبيت التطبيق على الجهاز</button>
+      <button class="btn" id="mCheck">🔄 التحقق من التحديث</button>
       <button class="btn" id="mCsv">📊 تصدير Excel (كل الكتب)</button>
-      <button class="btn" id="mBackup">💾 نسخة احتياطية كاملة (مع الصور)</button>
+      <button class="btn" id="mBackup">💾 نسخة احتياطية كاملة (مع الصور و PDF)</button>
       <button class="btn" id="mRestore">♻️ استعادة من نسخة احتياطية</button>
       <button class="btn" id="mNotify">🔔 تفعيل تنبيه المتأخرات</button>
 
@@ -264,6 +273,7 @@ function toast(msg) {
 }
 
 /* ================= قاعدة البيانات ================= */
+var APP_VERSION = '4';
 var DB = null;
 var BOOKS = [];
 var FILTER = 'due';
@@ -881,15 +891,63 @@ function offlineReady() {
 }
 
 function openMenu() {
-  var photos = BOOKS.filter(function (b) { return !!b.photo; }).length;
+  var atts = 0;
+  BOOKS.forEach(function (b) { atts += attsOf(b).length; });
   var ready = offlineReady();
   $('#menuInfo').innerHTML =
+    '<div><span>الإصدار:</span> v' + APP_VERSION + '</div>' +
     '<div><span>عدد الكتب:</span> ' + BOOKS.length + '</div>' +
-    '<div><span>فيهم صور:</span> ' + photos + '</div>' +
+    '<div><span>عدد المرفقات:</span> ' + atts + '</div>' +
     '<div><span>الحالة:</span> ' + (navigator.onLine ? 'متصل' : 'بدون إنترنت') + '</div>' +
     '<div><span>جاهز بدون نت:</span> ' + (ready ? '✅ نعم' : '⏳ لسا — أعد فتح التطبيق') + '</div>' +
     '<div><span>التخزين:</span> على هذا الجهاز</div>';
   openSheet('sheetMenu');
+}
+
+/* ================= التحديثات ================= */
+function checkUpdate(manual) {
+  if (!navigator.onLine) {
+    if (manual) toast('بدون نت — جرّب لما يرجع');
+    return;
+  }
+  fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      var remote = parseFloat(j && j.version) || 0;
+      var local = parseFloat(APP_VERSION) || 0;
+
+      if (remote > local) {
+        $('#upd').style.display = 'flex';
+        if (manual) toast('يوجد إصدار جديد — اضغط "تحديث الآن"');
+      } else {
+        $('#upd').style.display = 'none';
+        if (manual) toast('أنت على آخر إصدار ✅ (v' + APP_VERSION + ')');
+      }
+    })
+    .catch(function () { if (manual) toast('ما گدرت أتحقق من التحديث'); });
+}
+
+function applyUpdate() {
+  toast('جاري التحديث…');
+  var p = Promise.resolve();
+
+  if (window.caches) {
+    p = caches.keys().then(function (ks) {
+      return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+    });
+  }
+
+  p.then(function () {
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      return navigator.serviceWorker.getRegistrations().then(function (rs) {
+        return Promise.all(rs.map(function (r) { return r.unregister(); }));
+      });
+    }
+  }).then(function () {
+    location.reload();
+  }).catch(function () {
+    location.reload();
+  });
 }
 
 /* ================= أحداث ================= */
@@ -943,6 +1001,8 @@ $('#btnSave').addEventListener('click', saveNew);
 
 $('#mCsv').addEventListener('click', exportCSV);
 $('#mBackup').addEventListener('click', exportBackup);
+$('#mCheck').addEventListener('click', function () { checkUpdate(true); });
+$('#btnUpd').addEventListener('click', applyUpdate);
 $('#mRestore').addEventListener('click', function () { $('#fRestore').click(); });
 $('#fRestore').addEventListener('change', function (e) {
   var f = e.target.files && e.target.files[0];
@@ -973,7 +1033,10 @@ if ('serviceWorker' in navigator) {
 }
 
 renderNewFiles();
-load().then(function () { setTimeout(function () { maybeNotify(false); }, 1200); });
+load().then(function () {
+  setTimeout(function () { maybeNotify(false); }, 1200);
+  setTimeout(function () { checkUpdate(false); }, 2500);
+});
 </script>
 </body>
 </html>
