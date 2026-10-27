@@ -80,6 +80,20 @@
   .photo .thumb{width:74px;height:74px;border-radius:12px;object-fit:cover;background:#eef1f5;display:none}
   .photo .txt{flex:1;font-size:13px;color:var(--muted);line-height:1.6}
   .photo b{display:block;color:var(--navy);font-size:14.5px}
+  .files-head{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13px;font-weight:700;color:var(--navy);margin:14px 0 8px}
+  .files-head span{font-size:11.5px;font-weight:400;color:var(--muted)}
+  .fitem{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);
+    border-radius:12px;padding:10px 12px;margin-bottom:7px}
+  .ficon{font-size:19px;line-height:1}
+  .fname{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fsize{font-size:11px;color:var(--muted);white-space:nowrap}
+  .fx{background:#fde8e8;border:0;color:#b91c1c;width:26px;height:26px;border-radius:50%;font-size:13px;line-height:1}
+  .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .thumbs img{width:100%;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:#fff}
+  .att{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);
+    border-radius:12px;padding:12px;margin-top:8px;font-size:13.5px;color:var(--navy);text-decoration:none;width:100%;font-family:inherit;text-align:right}
+  .att .ficon{color:var(--navy)}
   .btn{width:100%;border:0;border-radius:14px;padding:15px;font-size:16.5px;font-weight:700;
     font-family:inherit;margin-top:16px;background:#fff;color:var(--navy);border:1px solid var(--line)}
   .btn-main{background:var(--navy);color:#fff;border:0}
@@ -134,16 +148,21 @@
       <button class="x" data-close="sheetAdd">✕</button>
     </div>
     <div class="body">
-      <div class="photo" id="photoBox">
-        <div class="txt"><b>📷 صوّر المخاطبة</b>الصورة تنحفظ داخل التطبيق — بلا إنترنت</div>
-        <img class="thumb" id="photoThumb" alt="">
+      <div class="files-head">
+        <b>📎 المرفقات</b>
+        <span id="filesInfo">ماكو مرفقات</span>
       </div>
+      <div id="filesList"></div>
+
       <input type="file" id="fPhoto" accept="image/*" capture="environment" style="display:none">
-      <input type="file" id="fPhotoLib" accept="image/*" style="display:none">
+      <input type="file" id="fPhotoLib" accept="image/*" multiple style="display:none">
+      <input type="file" id="fPdf" accept="application/pdf,.pdf" multiple style="display:none">
+
       <div class="btn-row">
         <button class="btn" id="btnPhoto">📷 تصوير</button>
-        <button class="btn" id="btnPhotoLib">🖼 من الصور</button>
+        <button class="btn" id="btnPhotoLib">🖼 صور</button>
       </div>
+      <button class="btn" id="btnPdf">📄 إضافة ملف PDF (عدة صفحات)</button>
 
       <div class="two">
         <div><label>النوع</label>
@@ -248,8 +267,10 @@ function toast(msg) {
 var DB = null;
 var BOOKS = [];
 var FILTER = 'due';
-var NEW_PHOTO = null;
-var VIEW_URL = null;
+var NEW_FILES = [];
+var VIEW_ATTS = [];
+var VIEW_URLS = [];
+var MAX_MB = 25;
 
 function openDB() {
   return new Promise(function (res, rej) {
@@ -373,7 +394,8 @@ function render() {
       '<div class="row-main">' +
         '<div class="row-title">' + esc(b.subject || '(بلا موضوع)') + '</div>' +
         '<div class="row-sub">' + esc(b.type) + ' · ' + esc(b.party || '—') +
-          (b.ref ? ' · رقم ' + esc(b.ref) : '') + ' · ' + esc(b.date || '') + '</div>' +
+          (b.ref ? ' · رقم ' + esc(b.ref) : '') + ' · ' + esc(b.date || '') +
+          (attsOf(b).length ? ' · 📎 ' + attsOf(b).length : '') + '</div>' +
       '</div>' +
       '<span class="badge ' + st.cls + '">' + st.txt + '</span>' +
     '</div>';
@@ -423,10 +445,12 @@ function closeAll() {
   Array.prototype.forEach.call(document.querySelectorAll('.sheet-wrap'), function (w) {
     w.classList.remove('open');
   });
-  if (VIEW_URL) { URL.revokeObjectURL(VIEW_URL); VIEW_URL = null; }
+  VIEW_URLS.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} });
+  VIEW_URLS = [];
+  VIEW_ATTS = [];
 }
 
-/* ================= صورة ================= */
+/* ================= صور وملفات ================= */
 function compress(file, maxDim, quality) {
   return new Promise(function (res, rej) {
     var img = new Image();
@@ -448,27 +472,100 @@ function compress(file, maxDim, quality) {
   });
 }
 
-function onPhoto(e) {
-  var f = e.target.files && e.target.files[0];
-  if (!f) return;
-  toast('جاري تجهيز الصورة…');
-  compress(f, 1600, 0.82).then(function (blob) {
-    NEW_PHOTO = blob;
-    var th = $('#photoThumb');
-    th.src = URL.createObjectURL(blob);
-    th.style.display = 'block';
-    $('#photoBox').querySelector('.txt').innerHTML = '<b>✅ الصورة جاهزة</b>تنحفظ مع الكتاب';
-    toast('الصورة جاهزة');
-  }).catch(function (err) { toast('⚠️ ' + err.message); });
+function fmtSize(b) {
+  b = Number(b) || 0;
+  if (b < 1024) return b + ' بايت';
+  if (b < 1048576) return (b / 1024).toFixed(0) + ' كيلوبايت';
+  return (b / 1048576).toFixed(1) + ' ميكا';
+}
+
+function addImages(fileList) {
+  var files = Array.prototype.slice.call(fileList || []);
+  if (!files.length) return;
+  toast('جاري تجهيز الصور…');
+
+  var chain = Promise.resolve();
+  files.forEach(function (f) {
+    chain = chain.then(function () {
+      return compress(f, 1600, 0.82).then(function (blob) {
+        NEW_FILES.push({ name: f.name || ('صورة-' + (NEW_FILES.length + 1) + '.jpg'),
+                         type: 'image/jpeg', blob: blob, size: blob.size });
+      }).catch(function () {});
+    });
+  });
+  chain.then(function () { renderNewFiles(); toast('انضافت الصور'); });
+}
+
+function addPdfs(fileList) {
+  var files = Array.prototype.slice.call(fileList || []);
+  if (!files.length) return;
+
+  var big = files.filter(function (f) { return f.size > MAX_MB * 1048576; });
+  if (big.length) {
+    toast('⚠️ "' + big[0].name + '" أكبر من ' + MAX_MB + ' ميكا — صغّره وأعد المحاولة');
+  }
+
+  files.filter(function (f) { return f.size <= MAX_MB * 1048576; })
+    .forEach(function (f) {
+      NEW_FILES.push({ name: f.name || 'ملف.pdf', type: 'application/pdf', blob: f, size: f.size });
+    });
+
+  renderNewFiles();
+  toast('انضافة الملفات');
+}
+
+function renderNewFiles() {
+  var box = $('#filesList');
+  if (!NEW_FILES.length) {
+    box.innerHTML = '<div style="font-size:12.5px;color:#6b7684;padding:4px 2px">ماكو مرفقات بعد — صوّر الكتاب أو أضف PDF</div>';
+    $('#filesInfo').textContent = 'ماكو مرفقات';
+    return;
+  }
+  var total = NEW_FILES.reduce(function (s, f) { return s + (f.size || 0); }, 0);
+  $('#filesInfo').textContent = NEW_FILES.length + ' ملف · ' + fmtSize(total);
+
+  box.innerHTML = NEW_FILES.map(function (f, i) {
+    var icon = f.type === 'application/pdf' ? '📄' : '🖼';
+    return '<div class="fitem">' +
+      '<span class="ficon">' + icon + '</span>' +
+      '<span class="fname">' + esc(f.name) + '</span>' +
+      '<span class="fsize">' + fmtSize(f.size) + '</span>' +
+      '<button class="fx" data-req="' + i + '">✕</button>' +
+    '</div>';
+  }).join('');
+}
+
+function onFilesChange(e) {
+  var f = e.target.files;
+  addImages(f);
+  e.target.value = '';
+}
+function onPdfChange(e) {
+  var f = e.target.files;
+  addPdfs(f);
+  e.target.value = '';
+}
+
+/* فتح المرفقات */
+function openAtt(blob) {
+  var u = URL.createObjectURL(blob);
+  var w = window.open(u, '_blank');
+  if (!w) toast('المتصفح منع الفتح — جرّب مرة ثانية');
+}
+
+function attsOf(b) {
+  if (b.attachments && b.attachments.length) return b.attachments;
+  if (b.photo) return [{ name: 'صورة.jpg', type: 'image/jpeg', blob: b.photo, size: b.photo.size || 0 }];
+  return [];
 }
 
 /* ================= إضافة ================= */
 function openAdd() {
-  NEW_PHOTO = null;
+  NEW_FILES = [];
   $('#fPhoto').value = '';
   $('#fPhotoLib').value = '';
-  $('#photoThumb').style.display = 'none';
-  $('#photoBox').querySelector('.txt').innerHTML = '<b>📷 صوّر المخاطبة</b>الصورة تنحفظ داخل التطبيق — بلا إنترنت';
+  $('#fPdf').value = '';
+  renderNewFiles();
   $('#fType').value = 'وارد';
   $('#fRef').value = '';
   $('#fParty').value = '';
@@ -496,7 +593,7 @@ function saveNew() {
     due: $('#fDue').value || '',
     status: 'قيد المتابعة',
     notes: $('#fNotes').value.trim() ? ('• ' + stamp() + ' — ' + $('#fNotes').value.trim()) : '',
-    photo: NEW_PHOTO || null,
+    attachments: NEW_FILES.slice(),
     createdAt: new Date().toISOString()
   };
 
@@ -519,10 +616,31 @@ function openItem(id) {
 
   $('#vTitle').textContent = 'كتاب رقم ' + b.id;
 
-  var img = '';
-  if (b.photo) {
-    VIEW_URL = URL.createObjectURL(b.photo);
-    img = '<img class="shot" src="' + VIEW_URL + '" alt="">';
+  VIEW_ATTS = attsOf(b);
+  var filesHtml = '';
+
+  if (VIEW_ATTS.length) {
+    var imgs = VIEW_ATTS.filter(function (a) { return a.type !== 'application/pdf'; });
+
+    if (imgs.length) {
+      filesHtml += '<div class="thumbs">' + imgs.map(function (a) {
+        var i = VIEW_ATTS.indexOf(a);
+        var u = URL.createObjectURL(a.blob);
+        VIEW_URLS.push(u);
+        return '<img data-att="' + i + '" src="' + u + '" alt="">';
+      }).join('') + '</div>';
+    }
+
+    filesHtml += VIEW_ATTS.map(function (a, i) {
+      var icon = a.type === 'application/pdf' ? '📄' : '🖼';
+      return '<button class="att" data-att="' + i + '">' +
+        '<span class="ficon">' + icon + '</span>' +
+        '<span class="fname">' + esc(a.name) + '</span>' +
+        '<span class="fsize">' + fmtSize(a.size) + '</span>' +
+      '</button>';
+    }).join('');
+
+    filesHtml += '<button class="btn btn-danger" id="vDelAtts" style="margin-top:10px">🗑 حذف كل المرفقات</button>';
   }
 
   var opts = ['جديد', 'قيد المتابعة', 'بانتظار رد', 'مكتمل', 'ملغى'].map(function (s) {
@@ -530,7 +648,7 @@ function openItem(id) {
   }).join('');
 
   $('#vBody').innerHTML =
-    img +
+    filesHtml +
     '<div class="meta" style="margin-top:12px">' +
       '<div><span>النوع:</span> ' + esc(b.type) + '</div>' +
       '<div><span>الجهة:</span> ' + esc(b.party || '—') + '</div>' +
@@ -599,6 +717,20 @@ function openItem(id) {
     removeBook(b.id).then(reload).then(function () { toast('انحذف'); });
   };
 
+  var delAtts = $('#vDelAtts');
+  if (delAtts) delAtts.onclick = function () {
+    if (!confirm('حذف كل مرفقات هذا الكتاب؟')) return;
+    b.attachments = [];
+    b.photo = null;
+    saveBook(b).then(function () {
+      return load();
+    }).then(function () {
+      closeAll();
+      openItem(b.id);
+      toast('انحذفت المرفقات');
+    });
+  };
+
   openSheet('sheetView');
 }
 
@@ -616,10 +748,10 @@ function csvCell(v) {
 }
 function exportCSV() {
   if (!BOOKS.length) { toast('ماكو بيانات للتصدير'); return; }
-  var head = ['المعرف', 'النوع', 'تاريخ الكتاب', 'الجهة', 'الموضوع', 'رقم الكتاب', 'تاريخ المتابعة', 'الحالة', 'الملاحظات'];
+  var head = ['المعرف', 'النوع', 'تاريخ الكتاب', 'الجهة', 'الموضوع', 'رقم الكتاب', 'تاريخ المتابعة', 'الحالة', 'المرفقات', 'الملاحظات'];
   var rows = [head];
   BOOKS.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (b) {
-    rows.push([b.id, b.type, b.date, b.party, b.subject, b.ref, b.due, b.status, b.notes]);
+    rows.push([b.id, b.type, b.date, b.party, b.subject, b.ref, b.due, b.status, attsOf(b).length, b.notes]);
   });
   var csv = rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n');
   download(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }), 'المخاطبات_' + todayStr() + '.csv');
@@ -640,17 +772,31 @@ function dataURLtoBlob(u) {
 
 function exportBackup() {
   if (!BOOKS.length) { toast('ماكو بيانات'); return; }
+
+  var total = 0;
+  BOOKS.forEach(function (b) {
+    attsOf(b).forEach(function (a) { total += (a.size || 0); });
+  });
+  if (total > 40 * 1048576 &&
+      !confirm('حجم المرفقات ' + fmtSize(total) + '.\nالنسخة الاحتياطية راح تكون كبيرة وقد تاخذ وقت.\nنكمل؟')) {
+    return;
+  }
+
   toast('جاري تجهيز النسخة…');
   var out = [];
   var chain = Promise.resolve();
   BOOKS.forEach(function (b) {
     chain = chain.then(function () {
       var o = { type: b.type, date: b.date, party: b.party, subject: b.subject, ref: b.ref,
-                due: b.due, status: b.status, notes: b.notes, createdAt: b.createdAt, photo: null };
-      if (b.photo) {
-        return blobToDataURL(b.photo).then(function (d) { o.photo = d; out.push(o); });
-      }
-      out.push(o);
+                due: b.due, status: b.status, notes: b.notes, createdAt: b.createdAt, attachments: [] };
+      var atts = attsOf(b);
+      return atts.reduce(function (p, a) {
+        return p.then(function () {
+          return blobToDataURL(a.blob).then(function (d) {
+            o.attachments.push({ name: a.name, type: a.type, size: a.size || 0, data: d });
+          });
+        });
+      }, Promise.resolve()).then(function () { out.push(o); });
     });
   });
   chain.then(function () {
@@ -673,15 +819,21 @@ function importBackup(file) {
       var chain = Promise.resolve();
       data.books.forEach(function (o) {
         chain = chain.then(function () {
-          if (o.photo) {
-            return dataURLtoBlob(o.photo).then(function (blob) {
-              o.photo = blob;
-              delete o.id;
-              return saveBook(o);
+          var rec = {
+            type: o.type, date: o.date, party: o.party, subject: o.subject, ref: o.ref,
+            due: o.due, status: o.status, notes: o.notes, createdAt: o.createdAt,
+            attachments: []
+          };
+          var atts = o.attachments || [];
+
+          return atts.reduce(function (p, a) {
+            return p.then(function () {
+              if (!a || !a.data) return;
+              return dataURLtoBlob(a.data).then(function (blob) {
+                rec.attachments.push({ name: a.name || 'ملف', type: a.type || blob.type, size: blob.size, blob: blob });
+              });
             });
-          }
-          delete o.id;
-          return saveBook(o);
+          }, Promise.resolve()).then(function () { return saveBook(rec); });
         });
       });
       return chain;
@@ -724,12 +876,18 @@ function maybeNotify(force) {
 }
 
 /* ================= قائمة ================= */
+function offlineReady() {
+  return !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+}
+
 function openMenu() {
   var photos = BOOKS.filter(function (b) { return !!b.photo; }).length;
+  var ready = offlineReady();
   $('#menuInfo').innerHTML =
     '<div><span>عدد الكتب:</span> ' + BOOKS.length + '</div>' +
     '<div><span>فيهم صور:</span> ' + photos + '</div>' +
     '<div><span>الحالة:</span> ' + (navigator.onLine ? 'متصل' : 'بدون إنترنت') + '</div>' +
+    '<div><span>جاهز بدون نت:</span> ' + (ready ? '✅ نعم' : '⏳ لسا — أعد فتح التطبيق') + '</div>' +
     '<div><span>التخزين:</span> على هذا الجهاز</div>';
   openSheet('sheetMenu');
 }
@@ -762,9 +920,25 @@ $('#search').addEventListener('input', render);
 
 $('#btnPhoto').addEventListener('click', function () { $('#fPhoto').click(); });
 $('#btnPhotoLib').addEventListener('click', function () { $('#fPhotoLib').click(); });
-$('#photoBox').addEventListener('click', function () { $('#fPhoto').click(); });
-$('#fPhoto').addEventListener('change', onPhoto);
-$('#fPhotoLib').addEventListener('change', onPhoto);
+$('#btnPdf').addEventListener('click', function () { $('#fPdf').click(); });
+$('#fPhoto').addEventListener('change', onFilesChange);
+$('#fPhotoLib').addEventListener('change', onFilesChange);
+$('#fPdf').addEventListener('change', onPdfChange);
+
+$('#filesList').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-req]');
+  if (!b) return;
+  NEW_FILES.splice(Number(b.getAttribute('data-req')), 1);
+  renderNewFiles();
+});
+
+$('#vBody').addEventListener('click', function (e) {
+  var t = e.target.closest('[data-att]');
+  if (!t) return;
+  var a = VIEW_ATTS[Number(t.getAttribute('data-att'))];
+  if (a && a.blob) openAtt(a.blob);
+});
+
 $('#btnSave').addEventListener('click', saveNew);
 
 $('#mCsv').addEventListener('click', exportCSV);
@@ -798,6 +972,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+renderNewFiles();
 load().then(function () { setTimeout(function () { maybeNotify(false); }, 1200); });
 </script>
 </body>
